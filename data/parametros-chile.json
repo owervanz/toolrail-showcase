@@ -1,0 +1,29 @@
+{
+  "note": "Parámetros previsionales y tributarios chilenos usados por /cl/sueldo-liquido. Los tramos del impuesto único están definidos en UTM por ley (art. 43 LIR), por lo que se auto-actualizan con el valor de la UTM del mes. Comisiones AFP y topes: revisar periódicamente (Superintendencia de Pensiones / Previred).",
+  "asOf": "2025-12",
+  "topeImponibleUF": 87.8,
+  "topeImponibleCesantiaUF": 131.9,
+  "cotizacionAfpBase": 0.10,
+  "cotizacionSaludMin": 0.07,
+  "seguroCesantiaIndefinido": 0.006,
+  "seguroCesantiaPlazoFijo": 0.0,
+  "comisionesAfp": {
+    "capital": 0.0144,
+    "cuprum": 0.0144,
+    "habitat": 0.0127,
+    "modelo": 0.0058,
+    "planvital": 0.0116,
+    "provida": 0.0145,
+    "uno": 0.0049
+  },
+  "tramosImpuestoUnicoUTM": [
+    { "hastaUTM": 13.5, "tasa": 0.0 },
+    { "hastaUTM": 30, "tasa": 0.04 },
+    { "hastaUTM": 50, "tasa": 0.08 },
+    { "hastaUTM": 70, "tasa": 0.135 },
+    { "hastaUTM": 90, "tasa": 0.23 },
+    { "hastaUTM": 120, "tasa": 0.304 },
+    { "hastaUTM": 310, "tasa": 0.35 },
+    { "hastaUTM": null, "tasa": 0.40 }
+  ]
+}

@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: agentutils
+    runtime: docker
+    plan: free # cambiar a "starter" (~US$7/mes) cuando haya tráfico real: sin cold starts y más RAM
+    healthCheckPath: /health
+    envVars:
+      - key: PORT
+        value: 4402
+      - key: BASE_URL
+        value: https://toolrail.dev
+      - key: NETWORK_MODE
+        value: mainnet
+      - key: EVM_PAY_TO
+        sync: false
+      - key: SOL_PAY_TO
+        sync: false
+      - key: FACILITATOR_URL
+        sync: false
+      - key: CMF_API_KEY
+        sync: false
+      - key: BANXICO_TOKEN
+        sync: false
+      - key: ADMIN_KEY
+        sync: false

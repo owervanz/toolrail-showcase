@@ -1,0 +1,25 @@
+{
+  "name": "agentutils",
+  "version": "1.0.0",
+  "description": "Utility API for AI agents: PDF generation, EU VAT, FX rates and Chilean operational data. Pay-per-call via x402.",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test/smoke.mjs",
+    "start": "node src/index.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "@coinbase/x402": "^2.1.0",
+    "@x402/core": "^2.19.0",
+    "@x402/evm": "^2.19.0",
+    "@x402/express": "^2.19.0",
+    "@x402/svm": "^2.19.0",
+    "express": "^5.2.1",
+    "google-libphonenumber": "^3.2.44",
+    "puppeteer-core": "^25.3.0",
+    "qrcode": "^1.5.4"
+  }
+}
