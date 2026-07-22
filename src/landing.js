@@ -46,7 +46,7 @@ const FAQ = [
    "Sure — any x402-enabled client or wallet works, and browsers hitting a paid endpoint get a paywall page. But the API is designed agent-first: machine-readable everything."],
 ];
 
-export function landingHtml(catalog, baseUrl, live = null) {
+export function landingHtml(catalog, baseUrl, live = null, mcpToolCount = 27) {
   const groupsHtml = GROUPS.map(g => {
     const items = catalog.filter(e => g.prefixes.some(p => e.route.split(" ")[1].startsWith(p)));
     if (!items.length) return "";
@@ -249,6 +249,7 @@ export function landingHtml(catalog, baseUrl, live = null) {
   <a href="#endpoints">Endpoints</a>
   <a href="#faq">FAQ</a>
   <a href="/guia">📘 Guía (ES)</a>
+  <a href="#mcp">MCP</a>
   <a class="nav-cta" href="${esc(baseUrl)}/skill.md">skill.md</a>
 </div></nav>
 <main id="top">
@@ -298,6 +299,14 @@ export function landingHtml(catalog, baseUrl, live = null) {
     <div class="checks"><span>Works with any AI agent</span><span>Payments handled automatically</span><span>No credentials to manage</span></div>
   </div>
 
+  <h2 id="mcp">No wallet? Use MCP — free</h2>
+  <div class="paste">
+    <label>ADD TO CLAUDE CODE, CLAUDE DESKTOP, CURSOR, OR ANY MCP CLIENT</label>
+    <pre>claude mcp add --transport http toolrail ${esc(baseUrl)}/mcp</pre>
+    <div class="checks"><span>${mcpToolCount} tools, zero cost</span><span>No wallet needed</span><span>Rate-limited, same data</span></div>
+  </div>
+  <p class="under">The x402 API above is the unlimited, agent-native channel (USDC, per call). MCP is the free, rate-limited on-ramp for everyone else — same underlying tools, minus PDF/QR generation.</p>
+
   <h2 id="endpoints">Endpoints &amp; pricing</h2>
   ${groupsHtml}
 
@@ -311,7 +320,7 @@ export function landingHtml(catalog, baseUrl, live = null) {
 </main></body></html>`;
 }
 
-export function llmsTxt(catalog, baseUrl) {
+export function llmsTxt(catalog, baseUrl, mcpToolCount = 27) {
   return `# Toolrail
 
 > Pay-per-call utility API for AI agents via the x402 payment protocol (USDC on Base or Solana — every 402 offers both). No API keys, no subscriptions: call an endpoint, receive HTTP 402 with payment instructions, pay, retry, get the resource. Gas is sponsored by the facilitator.
@@ -341,10 +350,12 @@ ${catalog.map(e => `- ${e.route} — ${e.price} — ${e.description}`).join("\n"
 
 ## Example (no payment yet — returns 402 with payment requirements)
 curl ${baseUrl}/fx/convert?from=USD&to=EUR&amount=100
+
+No wallet? ${baseUrl}/mcp exposes ${mcpToolCount} of these tools for free via MCP (Streamable HTTP, rate-limited) — add with \`claude mcp add --transport http toolrail ${baseUrl}/mcp\`.
 `;
 }
 
-export function skillMd(catalog, baseUrl) {
+export function skillMd(catalog, baseUrl, mcpToolCount = 27) {
   return `# Toolrail — agent skill
 
 Toolrail is a pay-per-call utility API for AI agents. Payment uses the x402 protocol:
@@ -355,6 +366,19 @@ client, retry with the payment proof, and receive the resource. Gas is sponsored
 by the facilitator — the paying wallet only needs USDC.
 
 Base URL: ${baseUrl}
+
+## No wallet? Use MCP instead (free, rate-limited)
+
+${mcpToolCount} of the JSON-data tools below (everything except PDF/QR generation) are
+also available for free over MCP (Streamable HTTP transport, no payment, subject to
+the same per-IP rate limit as the rest of the site) — the lower-friction option for
+Claude Code, Claude Desktop, Cursor, or any MCP-compatible client:
+
+\`\`\`
+claude mcp add --transport http toolrail ${baseUrl}/mcp
+\`\`\`
+
+For unlimited access and the binary endpoints (PDF, QR), use the x402 HTTP API below.
 
 ## Triggers
 
@@ -396,6 +420,7 @@ ${e.example}
 - \`GET /pdf/templates\` — full JSON schemas + examples for the PDF templates
 - \`GET /openapi.json\` — OpenAPI 3.1 spec
 - \`GET /llms.txt\` — plain-text service summary
+- \`POST /mcp\` — free MCP server (see above)
 
 ## Notes for agents
 

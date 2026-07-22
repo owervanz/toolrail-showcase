@@ -28,6 +28,7 @@ import { arIndices, coTrm, peTipoCambio, mxIndicadores, latamFx, fxSnapshot } fr
 import { daysHolidays, daysBusinessDays, validateIban, validatePhone, qrEndpoint } from "./global.js";
 import { validateTaxId, latamIndexacion, latamDolarArgentina } from "./latam.js";
 import { landingHtml, llmsTxt, openapiSpec, skillMd } from "./landing.js";
+import { mcpHandler, MCP_TOOL_COUNT } from "./mcp.js";
 import { PREVIEWS } from "./previews.js";
 import { statsMiddleware, statsEndpoint, registerKnownPaths, startStatsLogging } from "./stats.js";
 import { rateLimiter, securityHeaders, LANDING_CSP } from "./security.js";
@@ -220,9 +221,9 @@ if (paymentsEnabled()) {
 // re-rendered every 15 minutes with a live central-bank FX snapshot (still
 // static between refreshes: floods stay near-zero CPU).
 const STATIC_DOCS = {
-  landing: landingHtml(CATALOG, config.baseUrl),
-  llms: llmsTxt(CATALOG, config.baseUrl),
-  skill: skillMd(CATALOG, config.baseUrl),
+  landing: landingHtml(CATALOG, config.baseUrl, null, MCP_TOOL_COUNT),
+  llms: llmsTxt(CATALOG, config.baseUrl, MCP_TOOL_COUNT),
+  skill: skillMd(CATALOG, config.baseUrl, MCP_TOOL_COUNT),
   openapi: openapiSpec(CATALOG, config.baseUrl),
 };
 
@@ -230,7 +231,7 @@ async function refreshLandingLive() {
   try {
     const { monedas } = await fxSnapshot();
     if (Object.keys(monedas).length >= 3) {
-      STATIC_DOCS.landing = landingHtml(CATALOG, config.baseUrl, { fx: monedas });
+      STATIC_DOCS.landing = landingHtml(CATALOG, config.baseUrl, { fx: monedas }, MCP_TOOL_COUNT);
     }
   } catch (err) {
     console.warn("[landing] live FX refresh failed:", err?.message || err);
@@ -250,7 +251,8 @@ app.get("/", (req, res) => {
     description: "Utility API for AI agents: PDF generation, public holidays and business days for 187 countries, EU VAT, ECB FX rates, IBAN/phone validation, QR codes and Chilean operational data. Pay per call via x402 (USDC on Base / Solana). No API keys, no subscriptions.",
     payments: paymentsEnabled() ? { protocol: "x402", mode: config.networkMode } : { mode: "free (preview)" },
     endpoints: CATALOG.map(({ route, price, description, example }) => ({ route, price, description, example })),
-    free_endpoints: ["GET /", "GET /health", "GET /pdf/templates", "GET /openapi.json", "GET /llms.txt", "GET /skill.md"],
+    free_endpoints: ["GET /", "GET /health", "GET /pdf/templates", "GET /openapi.json", "GET /llms.txt", "GET /skill.md", "POST /mcp"],
+    mcp: { url: `${config.baseUrl}/mcp`, transport: "streamable-http", tools: MCP_TOOL_COUNT, cost: "free (rate-limited)", setup: `claude mcp add --transport http toolrail ${config.baseUrl}/mcp` },
     docs: `${config.baseUrl}/pdf/templates`,
     openapi: `${config.baseUrl}/openapi.json`,
   });
@@ -276,6 +278,7 @@ const wellKnownX402 = (req, res) => res.json({
   openapi: `${config.baseUrl}/openapi.json`,
   llms_txt: `${config.baseUrl}/llms.txt`,
   skill: `${config.baseUrl}/skill.md`,
+  mcp: { url: `${config.baseUrl}/mcp`, transport: "streamable-http", tools: MCP_TOOL_COUNT, cost: "free (rate-limited)" },
   resources: CATALOG.map(({ route, price, description }) => {
     const [method, path] = route.split(" ");
     return { resource: `${config.baseUrl}${path}`, method, price, description };
@@ -284,6 +287,10 @@ const wellKnownX402 = (req, res) => res.json({
 app.get("/.well-known/x402.json", wellKnownX402);
 app.get("/.well-known/x402", wellKnownX402);
 app.get("/admin/stats", statsEndpoint);
+
+// MCP (Model Context Protocol): free, rate-limited discovery channel — the
+// x402 HTTP API above remains the unlimited paid channel. See src/mcp.js.
+app.post("/mcp", mcpHandler);
 
 // SEO plumbing: robots + sitemap (the modern "tags" that actually work,
 // along with the JSON-LD block in the landing head).
@@ -377,7 +384,7 @@ process.on("unhandledRejection", err => {
 registerKnownPaths([
   ...CATALOG.map(i => i.route.split(" ")[1]),
   "/", "/health", "/pdf/templates", "/llms.txt", "/skill.md", "/openapi.json",
-  "/.well-known/x402.json", "/.well-known/x402", "/fx/currencies", "/admin/stats", "/guia",
+  "/.well-known/x402.json", "/.well-known/x402", "/fx/currencies", "/admin/stats", "/guia", "/mcp",
 ]);
 startStatsLogging();
 

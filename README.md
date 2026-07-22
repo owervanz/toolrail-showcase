@@ -30,7 +30,8 @@ An API that AI agents pay for **autonomously, in USDC, per request** — no acco
 | **6** central banks | integrated as live data sources (Chile, Argentina, Brazil, Mexico, Colombia, Peru) |
 | **2** payment networks | Base + Solana mainnet, every endpoint accepts both |
 | **3** languages | product docs shipped in Spanish, English, Portuguese |
-| **59** automated tests | run 3x per change before every deploy — this repo included |
+| **27** MCP tools | same data, zero payment, free discovery channel for Claude/Cursor |
+| **64** automated tests | run 3x per change before every deploy — this repo included |
 | **3** security audits | data-integrity, adversarial, and hardening passes (details below) |
 
 ## Architecture
@@ -39,6 +40,7 @@ An API that AI agents pay for **autonomously, in USDC, per request** — no acco
 - **Data layer:** live integrations with official sources only — European Central Bank, EU Commission (VAT/VIES), Nager.Date (187-country holidays), and six Latin American central banks — with **defensive JSON parsing** for legacy government backends (see "real bugs" below).
 - **Document generation:** headless-Chrome PDF rendering (Puppeteer) with JavaScript disabled and all network requests blocked mid-render — hardened against SSRF from user-supplied HTML.
 - **Delivery:** Docker on Render, auto-deployed on push; custom domain, TLS, DNS.
+- **Two distribution channels, one source of truth:** the paid x402 HTTP API is the unlimited, agent-native channel; an [MCP server](https://modelcontextprotocol.io) (`POST /mcp`, Streamable HTTP) exposes 27 of the same tools for free, rate-limited, for wallet-less clients like Claude Desktop or Cursor (`claude mcp add --transport http toolrail https://toolrail.dev/mcp`). Every MCP tool calls the **exact same handler function** as its HTTP route through a small Express req/res adapter (see [`src/mcp.js`](src/mcp.js)) — zero business-logic duplication between the two surfaces.
 
 ## Real bugs I hit and fixed
 
@@ -61,7 +63,7 @@ Three audit passes, each with regression tests baked into `test/smoke.mjs`:
 ```bash
 npm install
 npm start        # http://localhost:4402, free mode — no wallet needed to explore
-npm test         # 59 automated checks against a live local instance
+npm test         # 64 automated checks against a live local instance
 ```
 
 ## Stack

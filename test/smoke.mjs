@@ -385,6 +385,62 @@ await check("SEO: robots.txt, sitemap.xml, JSON-LD y canonical", async () => {
   if (!html.includes('rel="canonical"')) throw new Error("sin canonical");
 });
 
+await check("MCP: initialize handshake", async () => {
+  const r = await fetch(BASE + "/mcp", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "smoke-test", version: "1.0" } } }),
+  });
+  const text = await r.text();
+  if (!text.includes('"serverInfo"') || !text.includes('"toolrail"')) throw new Error(text.slice(0, 200));
+});
+
+await check("MCP: tools/list expone las 27 herramientas", async () => {
+  const r = await fetch(BASE + "/mcp", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" }),
+  });
+  const text = await r.text();
+  const count = (text.match(/"name":"/g) || []).length;
+  if (count < 27) throw new Error(`solo ${count} tools listadas`);
+  if (!text.includes('"fx_convert"') || !text.includes('"cl_rut"') || !text.includes('"latam_fx"')) throw new Error("faltan tools esperadas");
+});
+
+await check("MCP: tools/call fx_convert reutiliza el handler real (dato en vivo)", async () => {
+  const r = await fetch(BASE + "/mcp", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "fx_convert", arguments: { from: "USD", to: "EUR", amount: 100 } } }),
+  });
+  const text = await r.text();
+  // The tool result's JSON is nested inside an SSE "text" content string, so its
+  // quotes come back backslash-escaped (\"converted\") — match without quotes.
+  if (!text.includes("converted") || !text.includes("European Central Bank")) throw new Error(`status=${r.status} FULL: ${text.slice(0, 300)}`);
+  if (text.includes('"isError":true')) throw new Error("marcado como error inesperadamente: " + text.slice(0, 200));
+});
+
+await check("MCP: tools/call con argumento invalido devuelve isError, no un crash", async () => {
+  const r = await fetch(BASE + "/mcp", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "vat_rates", arguments: { country: "XX" } } }),
+  });
+  if (r.status >= 500) throw new Error(`status ${r.status}`);
+  const text = await r.text();
+  if (!text.includes('"isError":true')) throw new Error("no marco isError para pais invalido");
+});
+
+await check("MCP: no expone endpoints binarios (pdf/qr) como tools", async () => {
+  const r = await fetch(BASE + "/mcp", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json, text/event-stream" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 5, method: "tools/list" }),
+  });
+  const text = await r.text();
+  if (text.includes('"name":"pdf"') || /"name":"qr"/.test(text)) throw new Error("se filtro una tool binaria sin soporte");
+});
+
 await check("Guia web gratis: contenido completo y sin secretos", async () => {
   const r = await fetch(BASE + "/guia");
   const t = await r.text();
