@@ -3,7 +3,7 @@
 //   SELIC target (432), CDI annualized (4389), IPCA monthly variation (433), PTAX USD (1).
 // - Postal code (CEP) lookup via ViaCEP (the de-facto standard, no key).
 
-import { fetchJson, TTLCache, badRequest, upstreamError } from "./util.js";
+import { fetchJson, TTLCache, badRequest, upstreamError, cachedOrStale } from "./util.js";
 
 const cache = new TTLCache(6 * 60 * 60 * 1000);
 
@@ -14,31 +14,37 @@ const SGS = {
   ptax: { serie: 1, nombre: "Dólar PTAX venta", unidad: "BRL por USD" },
 };
 
-async function sgsLatest(serie) {
-  const key = `sgs:${serie}`;
-  let hit = cache.get(key);
-  if (!hit) {
+function sgsLatest(serie) {
+  return cachedOrStale(cache, `sgs:${serie}`, async () => {
     const data = await fetchJson(`https://api.bcb.gov.br/dados/serie/bcdata.sgs.${serie}/dados/ultimos/1?formato=json`, { timeoutMs: 12000 });
     const d = data?.[0];
     if (!d) throw new Error(`SGS ${serie}: sin datos`);
     const [dd, mm, yy] = d.data.split("/");
-    hit = cache.set(key, { valor: Number(d.valor), fecha: `${yy}-${mm}-${dd}` });
-  }
-  return hit;
+    return { valor: Number(d.valor), fecha: `${yy}-${mm}-${dd}` };
+  });
 }
 
 export async function brIndices(req, res) {
-  try {
-    const entries = await Promise.all(
-      Object.entries(SGS).map(async ([k, meta]) => {
-        const { valor, fecha } = await sgsLatest(meta.serie);
-        return [k, { valor, fecha, nombre: meta.nombre, unidad: meta.unidad }];
-      })
-    );
-    res.json({ pais: "Brasil", indices: Object.fromEntries(entries), fuente: "Banco Central do Brasil (SGS)" });
-  } catch (err) {
-    upstreamError(res, "Banco Central do Brasil (SGS)", err);
-  }
+  // One slow/down series (e.g. PTAX) shouldn't take out the other three —
+  // settle each independently instead of failing the whole call on Promise.all.
+  const results = await Promise.allSettled(
+    Object.entries(SGS).map(async ([k, meta]) => {
+      const { value, stale } = await sgsLatest(meta.serie);
+      return [k, { valor: value.valor, fecha: value.fecha, nombre: meta.nombre, unidad: meta.unidad, ...(stale ? { stale: true } : {}) }];
+    })
+  );
+  const indices = {};
+  const errores = [];
+  Object.keys(SGS).forEach((k, i) => {
+    const r = results[i];
+    if (r.status === "fulfilled") indices[r.value[0]] = r.value[1];
+    else errores.push({ indicador: k, error: String(r.reason?.message || r.reason).slice(0, 120) });
+  });
+  if (!Object.keys(indices).length) return upstreamError(res, "Banco Central do Brasil (SGS)", new Error("ninguna serie respondió"));
+  res.json({
+    pais: "Brasil", indices, fuente: "Banco Central do Brasil (SGS)",
+    ...(errores.length ? { indicadores_no_disponibles: errores } : {}),
+  });
 }
 
 export async function brCep(req, res) {

@@ -6,7 +6,7 @@
 // - Argentine dollar quotes (oficial/blue/euro) — the region's most-watched FX gap.
 // All sources official or community mirrors of official data. No scraping.
 
-import { fetchJson, TTLCache, badRequest, upstreamError, todayIn } from "./util.js";
+import { fetchJson, TTLCache, badRequest, upstreamError, todayIn, cachedOrStale } from "./util.js";
 import { getIndicator } from "./chile.js";
 import { config } from "./config.js";
 
@@ -264,8 +264,7 @@ export async function latamIndexacion(req, res) {
 
 export async function arIndices(req, res) {
   try {
-    let hit = cache.get("ar-indices");
-    if (!hit) {
+    const { value: hit, stale, staleAgeS } = await cachedOrStale(cache, "ar-indices", async () => {
       const [inflacion, riesgo] = await Promise.all([
         fetchJson("https://api.argentinadatos.com/v1/finanzas/indices/inflacion", { timeoutMs: 15000 }),
         fetchJson("https://api.argentinadatos.com/v1/finanzas/indices/riesgo-pais/ultimo", { timeoutMs: 15000 }),
@@ -274,13 +273,16 @@ export async function arIndices(req, res) {
       const last12 = inflacion.slice(-12);
       const interanual = (last12.reduce((f, m) => f * (1 + m.valor / 100), 1) - 1) * 100;
       const ultimo = inflacion[inflacion.length - 1];
-      hit = cache.set("ar-indices", {
+      return {
         inflacion_mensual: { valor: ultimo.valor, mes: ultimo.fecha.slice(0, 7) },
         inflacion_interanual_pct: Math.round(interanual * 10) / 10,
         riesgo_pais: { valor: riesgo.valor, fecha: riesgo.fecha, unidad: "puntos básicos" },
-      });
-    }
-    res.json({ pais: "Argentina", ...hit, fuente: "INDEC/BCRA vía ArgentinaDatos" });
+      };
+    });
+    res.json({
+      pais: "Argentina", ...hit, fuente: "INDEC/BCRA vía ArgentinaDatos",
+      ...(stale ? { stale: true, stale_reason: `ArgentinaDatos no respondió — mostrando el último valor conocido (hace ~${staleAgeS}s de su vencimiento normal).` } : {}),
+    });
   } catch (err) {
     upstreamError(res, "ArgentinaDatos", err);
   }
@@ -290,21 +292,21 @@ export async function arIndices(req, res) {
 
 export async function coTrm(req, res) {
   try {
-    let hit = fxCache.get("co-trm");
-    if (!hit) {
+    const { value: hit, stale, staleAgeS } = await cachedOrStale(fxCache, "co-trm", async () => {
       const data = await fetchJson("https://www.datos.gov.co/resource/32sa-8pi3.json?$limit=1&$order=vigenciadesde%20DESC", { timeoutMs: 15000 });
       const d = data?.[0];
       if (!d) throw new Error("sin datos TRM");
-      hit = fxCache.set("co-trm", {
+      return {
         valor: Number(d.valor),
         vigente_desde: d.vigenciadesde?.slice(0, 10),
         vigente_hasta: d.vigenciahasta?.slice(0, 10),
-      });
-    }
+      };
+    });
     res.json({
       pais: "Colombia", indicador: "TRM (Tasa Representativa del Mercado)", moneda: "COP por USD", ...hit,
       nota: "Tasa oficial legal para impuestos y contratos en Colombia.",
       fuente: "Superintendencia Financiera vía datos.gov.co",
+      ...(stale ? { stale: true, stale_reason: `datos.gov.co no respondió — mostrando el último valor conocido (hace ~${staleAgeS}s de su vencimiento normal).` } : {}),
     });
   } catch (err) {
     upstreamError(res, "datos.gov.co (TRM)", err);
@@ -358,8 +360,7 @@ function parseBcrp(data) {
 
 export async function peTipoCambio(req, res) {
   try {
-    let hit = fxCache.get("pe-tc");
-    if (!hit) {
+    const { value: hit, stale, staleAgeS } = await cachedOrStale(fxCache, "pe-tc", async () => {
       const today = todayIn("America/Lima");
       const from = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
       const fmt = s => s.replace(/-0?/g, "-"); // BCRP wants 2026-7-19 style
@@ -367,12 +368,13 @@ export async function peTipoCambio(req, res) {
         bcrpJson(`https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PD04640PD/json/${fmt(from)}/${fmt(today)}`),
         bcrpJson(`https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PD04639PD/json/${fmt(from)}/${fmt(today)}`),
       ]);
-      hit = fxCache.set("pe-tc", { venta: parseBcrp(venta), compra: parseBcrp(compra) });
-    }
+      return { venta: parseBcrp(venta), compra: parseBcrp(compra) };
+    });
     res.json({
       pais: "Perú", indicador: "Tipo de cambio SBS", moneda: "PEN por USD",
       venta: hit.venta.valor, compra: hit.compra.valor, fecha_bcrp: hit.venta.fecha_bcrp,
       fuente: "BCRP (Banco Central de Reserva del Perú)",
+      ...(stale ? { stale: true, stale_reason: `BCRP no respondió — mostrando el último valor conocido (hace ~${staleAgeS}s de su vencimiento normal).` } : {}),
     });
   } catch (err) {
     upstreamError(res, "BCRP", err);
@@ -383,9 +385,7 @@ export async function peTipoCambio(req, res) {
 
 async function banxicoSerie(serie) {
   if (!config.banxicoToken) throw new Error("Requires BANXICO_TOKEN (free at banxico.org.mx/SieAPIRest).");
-  const key = `banxico:${serie}`;
-  let hit = fxCache.get(key);
-  if (!hit) {
+  return cachedOrStale(fxCache, `banxico:${serie}`, async () => {
     const data = await fetchJson(
       `https://www.banxico.org.mx/SieAPIRest/service/v1/series/${serie}/datos/oportuno?token=${config.banxicoToken}`,
       { timeoutMs: 15000 }
@@ -393,19 +393,20 @@ async function banxicoSerie(serie) {
     const d = data?.bmx?.series?.[0]?.datos?.[0];
     if (!d) throw new Error(`Banxico ${serie}: sin datos`);
     const [dd, mm, yy] = d.fecha.split("/");
-    hit = fxCache.set(key, { valor: Number(d.dato), fecha: `${yy}-${mm}-${dd}` });
-  }
-  return hit;
+    return { valor: Number(d.dato), fecha: `${yy}-${mm}-${dd}` };
+  });
 }
 
 export async function mxIndicadores(req, res) {
   try {
     const [fix, tiie] = await Promise.all([banxicoSerie("SF43718"), banxicoSerie("SF43783")]);
+    const stale = fix.stale || tiie.stale;
     res.json({
       pais: "México",
-      dolar_fix: { valor: fix.valor, fecha: fix.fecha, unidad: "MXN por USD", nota: "Tipo de cambio FIX oficial para obligaciones" },
-      tiie_28d: { valor: tiie.valor, fecha: tiie.fecha, unidad: "% anual" },
+      dolar_fix: { valor: fix.value.valor, fecha: fix.value.fecha, unidad: "MXN por USD", nota: "Tipo de cambio FIX oficial para obligaciones" },
+      tiie_28d: { valor: tiie.value.valor, fecha: tiie.value.fecha, unidad: "% anual" },
       fuente: "Banco de México (SIE)",
+      ...(stale ? { stale: true, stale_reason: "Banxico no respondió — mostrando el último valor conocido." } : {}),
     });
   } catch (err) {
     upstreamError(res, "Banco de México", err);
@@ -418,36 +419,47 @@ export async function fxSnapshot() {
   const jobs = {
     CLP: async () => {
       const d = await getIndicator("dolar", null);
-      return { valor: d.valor, fecha: d.fecha, fuente: d.fuente, tipo: "dólar observado" };
+      return { valor: d.valor, fecha: d.fecha, fuente: d.fuente, tipo: "dólar observado", ...(d.stale ? { stale: true } : {}) };
     },
     ARS: async () => {
-      const raw = fxCache.get("dolar-ar") || fxCache.set("dolar-ar", await fetchJson("https://api.bluelytics.com.ar/v2/latest", { timeoutMs: 12000 }));
+      const { value: raw, stale } = await cachedOrStale(fxCache, "dolar-ar", () => fetchJson("https://api.bluelytics.com.ar/v2/latest", { timeoutMs: 12000 }));
       return {
         oficial: raw.oficial?.value_avg, blue: raw.blue?.value_avg,
         brecha_pct: raw.oficial && raw.blue ? Math.round(((raw.blue.value_avg / raw.oficial.value_avg) - 1) * 1000) / 10 : null,
-        fuente: "Bluelytics", tipo: "oficial + paralelo",
+        fuente: "Bluelytics", tipo: "oficial + paralelo", ...(stale ? { stale: true } : {}),
       };
     },
     BRL: async () => {
-      const data = await fetchJson("https://api.bcb.gov.br/dados/serie/bcdata.sgs.1/dados/ultimos/1?formato=json", { timeoutMs: 12000 });
-      const [dd, mm, yy] = data[0].data.split("/");
-      return { valor: Number(data[0].valor), fecha: `${yy}-${mm}-${dd}`, fuente: "BCB", tipo: "PTAX venta" };
+      const { value, stale } = await cachedOrStale(fxCache, "flagship-brl-ptax", async () => {
+        const data = await fetchJson("https://api.bcb.gov.br/dados/serie/bcdata.sgs.1/dados/ultimos/1?formato=json", { timeoutMs: 12000 });
+        const [dd, mm, yy] = data[0].data.split("/");
+        return { valor: Number(data[0].valor), fecha: `${yy}-${mm}-${dd}` };
+      });
+      return { ...value, fuente: "BCB", tipo: "PTAX venta", ...(stale ? { stale: true } : {}) };
     },
     MXN: async () => {
       const f = await banxicoSerie("SF43718");
-      return { valor: f.valor, fecha: f.fecha, fuente: "Banxico", tipo: "FIX oficial" };
+      return { valor: f.value.valor, fecha: f.value.fecha, fuente: "Banxico", tipo: "FIX oficial", ...(f.stale ? { stale: true } : {}) };
     },
     COP: async () => {
-      const data = await fetchJson("https://www.datos.gov.co/resource/32sa-8pi3.json?$limit=1&$order=vigenciadesde%20DESC", { timeoutMs: 12000 });
-      return { valor: Number(data[0].valor), vigente_desde: data[0].vigenciadesde?.slice(0, 10), fuente: "datos.gov.co", tipo: "TRM legal" };
+      // Deliberately a separate cache key from coTrm's "co-trm" — that one
+      // also stores vigente_hasta, and sharing the key would let whichever
+      // job runs second silently overwrite the other's shape.
+      const { value, stale } = await cachedOrStale(fxCache, "flagship-cop-trm", async () => {
+        const data = await fetchJson("https://www.datos.gov.co/resource/32sa-8pi3.json?$limit=1&$order=vigenciadesde%20DESC", { timeoutMs: 12000 });
+        return { valor: Number(data[0].valor), vigente_desde: data[0].vigenciadesde?.slice(0, 10) };
+      });
+      return { ...value, fuente: "datos.gov.co", tipo: "TRM legal", ...(stale ? { stale: true } : {}) };
     },
     PEN: async () => {
-      const today = todayIn("America/Lima");
-      const from = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
-      const fmt = s => s.replace(/-0?/g, "-");
-      const venta = await bcrpJson(`https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PD04640PD/json/${fmt(from)}/${fmt(today)}`);
-      const p = parseBcrp(venta);
-      return { valor: p.valor, fecha_bcrp: p.fecha_bcrp, fuente: "BCRP", tipo: "SBS venta" };
+      const { value, stale } = await cachedOrStale(fxCache, "pe-tc-venta", async () => {
+        const today = todayIn("America/Lima");
+        const from = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+        const fmt = s => s.replace(/-0?/g, "-");
+        const venta = await bcrpJson(`https://estadisticas.bcrp.gob.pe/estadisticas/series/api/PD04640PD/json/${fmt(from)}/${fmt(today)}`);
+        return parseBcrp(venta);
+      });
+      return { valor: value.valor, fecha_bcrp: value.fecha_bcrp, fuente: "BCRP", tipo: "SBS venta", ...(stale ? { stale: true } : {}) };
     },
   };
 
@@ -477,11 +489,7 @@ export async function latamFx(req, res) {
 
 export async function latamDolarArgentina(req, res) {
   try {
-    let data = fxCache.get("dolar-ar");
-    if (!data) {
-      const raw = await fetchJson("https://api.bluelytics.com.ar/v2/latest", { timeoutMs: 12000 });
-      data = fxCache.set("dolar-ar", raw);
-    }
+    const { value: data, stale, staleAgeS } = await cachedOrStale(fxCache, "dolar-ar", () => fetchJson("https://api.bluelytics.com.ar/v2/latest", { timeoutMs: 12000 }));
     res.json({
       oficial: data.oficial, blue: data.blue,
       oficial_euro: data.oficial_euro, blue_euro: data.blue_euro,
@@ -490,6 +498,7 @@ export async function latamDolarArgentina(req, res) {
         : null,
       last_update: data.last_update,
       fuente: "Bluelytics (promedio de cotizaciones publicadas)",
+      ...(stale ? { stale: true, stale_reason: `Bluelytics no respondió — mostrando el último valor conocido (hace ~${staleAgeS}s de su vencimiento normal).` } : {}),
     });
   } catch (err) {
     upstreamError(res, "bluelytics.com.ar", err);

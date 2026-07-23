@@ -30,16 +30,40 @@ export class TTLCache {
   get(key) {
     const hit = this.map.get(key);
     if (!hit) return undefined;
-    if (Date.now() > hit.expires) {
-      this.map.delete(key);
-      return undefined;
-    }
+    // Expired entries are kept (not deleted) so getStale() can still reach
+    // them as a last-resort fallback — see cachedOrStale below.
+    if (Date.now() > hit.expires) return undefined;
     return hit.value;
+  }
+  // Last known value regardless of TTL — used only when a live refetch has
+  // already failed, so a transient upstream outage degrades to "serving a
+  // recent, honestly-labeled value" instead of a hard error.
+  getStale(key) {
+    const hit = this.map.get(key);
+    if (!hit) return undefined;
+    return { value: hit.value, ageMs: Date.now() - (hit.expires - this.ttlMs) };
   }
   set(key, value) {
     if (this.map.size > 5000) this.map.clear();
     this.map.set(key, { value, expires: Date.now() + this.ttlMs });
     return value;
+  }
+}
+
+// Cache-aside with a stale-on-error fallback: try the cache, then a live
+// fetch, and only if BOTH the cache is cold/expired AND the live fetch fails
+// does the caller see an error — if a previous (even expired) value exists,
+// it's returned labeled `stale: true` instead. Callers merge `.value` into
+// their response and check `.stale` to add a disclosure field.
+export async function cachedOrStale(cache, key, fetchFn) {
+  const fresh = cache.get(key);
+  if (fresh !== undefined) return { value: fresh, stale: false };
+  try {
+    return { value: cache.set(key, await fetchFn()), stale: false };
+  } catch (err) {
+    const stale = cache.getStale(key);
+    if (stale) return { value: stale.value, stale: true, staleAgeS: Math.round(stale.ageMs / 1000) };
+    throw err;
   }
 }
 

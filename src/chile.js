@@ -10,7 +10,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { fetchJson, TTLCache, badRequest, upstreamError, todayIn } from "./util.js";
+import { fetchJson, TTLCache, badRequest, upstreamError, todayIn, cachedOrStale } from "./util.js";
 import { config } from "./config.js";
 
 const dataDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "data");
@@ -25,33 +25,35 @@ const INDICATOR_CODES = ["uf", "utm", "dolar", "euro", "ipc"];
 
 export async function getIndicator(code, date /* YYYY-MM-DD | null */) {
   const key = `ind:${code}:${date || "latest"}`;
-  const hit = cache.get(key);
-  if (hit) return hit;
-
-  // mindicador expects dd-mm-yyyy for dated queries
-  let url = `https://mindicador.cl/api/${code}`;
-  if (date) {
-    const [y, m, d] = date.split("-");
-    url += `/${d}-${m}-${y}`;
-  }
-  try {
-    const data = await fetchJson(url);
-    const serie = data.serie?.[0];
-    if (!serie) throw new Error("no data for date");
-    return cache.set(key, { valor: serie.valor, fecha: serie.fecha.slice(0, 10), fuente: "mindicador.cl (Banco Central de Chile)" });
-  } catch (err) {
-    // Fallback: CMF API (requires free key) — only UF/UTM/dólar/euro/IPC
-    if (!config.cmfApiKey) throw err;
-    const cmfName = { uf: "uf", utm: "utm", dolar: "dolar", euro: "euro", ipc: "ipc" }[code];
-    const datePart = date ? `/${date.replaceAll("-", "/")}` : "";
-    const cmf = await fetchJson(
-      `https://api.cmfchile.cl/api-sbifv3/recursos_api/${cmfName}${datePart}?apikey=${config.cmfApiKey}&formato=json`
-    );
-    const entry = (cmf.UFs || cmf.UTMs || cmf.Dolares || cmf.Euros || cmf.IPCs || [])[0];
-    if (!entry) throw new Error("CMF: no data");
-    const valor = Number(String(entry.Valor).replace(/\./g, "").replace(",", "."));
-    return cache.set(key, { valor, fecha: entry.Fecha, fuente: "CMF Chile" });
-  }
+  const { value, stale, staleAgeS } = await cachedOrStale(cache, key, async () => {
+    // mindicador expects dd-mm-yyyy for dated queries
+    let url = `https://mindicador.cl/api/${code}`;
+    if (date) {
+      const [y, m, d] = date.split("-");
+      url += `/${d}-${m}-${y}`;
+    }
+    try {
+      const data = await fetchJson(url);
+      const serie = data.serie?.[0];
+      if (!serie) throw new Error("no data for date");
+      return { valor: serie.valor, fecha: serie.fecha.slice(0, 10), fuente: "mindicador.cl (Banco Central de Chile)" };
+    } catch (err) {
+      // Fallback: CMF API (requires free key) — only UF/UTM/dólar/euro/IPC
+      if (!config.cmfApiKey) throw err;
+      const cmfName = { uf: "uf", utm: "utm", dolar: "dolar", euro: "euro", ipc: "ipc" }[code];
+      const datePart = date ? `/${date.replaceAll("-", "/")}` : "";
+      const cmf = await fetchJson(
+        `https://api.cmfchile.cl/api-sbifv3/recursos_api/${cmfName}${datePart}?apikey=${config.cmfApiKey}&formato=json`
+      );
+      const entry = (cmf.UFs || cmf.UTMs || cmf.Dolares || cmf.Euros || cmf.IPCs || [])[0];
+      if (!entry) throw new Error("CMF: no data");
+      const valor = Number(String(entry.Valor).replace(/\./g, "").replace(",", "."));
+      return { valor, fecha: entry.Fecha, fuente: "CMF Chile" };
+    }
+  });
+  // Third layer: both mindicador.cl AND CMF failed live, but we have a recent
+  // cached value — serve it labeled stale instead of a hard 502.
+  return stale ? { ...value, stale: true, stale_reason: `mindicador.cl y CMF no respondieron — mostrando el último valor conocido (hace ~${staleAgeS}s de su vencimiento normal).` } : value;
 }
 
 export async function clIndicadores(req, res) {
@@ -83,6 +85,7 @@ export async function clUfConvert(req, res) {
       valor_uf: uf.valor,
       fecha: uf.fecha,
       fuente: uf.fuente,
+      ...(uf.stale ? { stale: true, stale_reason: uf.stale_reason } : {}),
     });
   } catch (err) {
     upstreamError(res, "mindicador.cl / CMF", err);
@@ -190,6 +193,7 @@ export async function clSueldoLiquido(req, res) {
 
   try {
     const [uf, utm] = await Promise.all([getIndicator("uf", null), getIndicator("utm", null)]);
+    const staleInputs = uf.stale || utm.stale;
     const topeImponible = PARAMS.topeImponibleUF * uf.valor;
     const imponible = Math.min(bruto, topeImponible);
 
@@ -231,6 +235,7 @@ export async function clSueldoLiquido(req, res) {
         parametros_asOf: PARAMS.asOf,
       },
       disclaimer: "Cálculo referencial. No reemplaza una liquidación de sueldo oficial.",
+      ...(staleInputs ? { stale: true, stale_reason: "UF/UTM: mindicador.cl y CMF no respondieron — cálculo con el último valor conocido." } : {}),
     });
   } catch (err) {
     upstreamError(res, "mindicador.cl / CMF (UF/UTM)", err);

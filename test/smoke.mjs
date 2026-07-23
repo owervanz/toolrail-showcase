@@ -2,6 +2,7 @@
 // Run: node test/smoke.mjs
 import { spawn } from "node:child_process";
 import { writeFileSync, mkdirSync } from "node:fs";
+import { TTLCache, cachedOrStale } from "../src/util.js";
 
 const PORT = 4499;
 const BASE = `http://localhost:${PORT}`;
@@ -36,6 +37,27 @@ const postJson = async (path, body, expectPdf = false) => {
 for (let i = 0; i < 30; i++) {
   try { await fetch(BASE + "/health"); break; } catch { await new Promise(r => setTimeout(r, 500)); }
 }
+
+await check("cachedOrStale: sirve el ultimo valor conocido si el fetch en vivo falla", async () => {
+  const cache = new TTLCache(50); // TTL corto a proposito, para forzar el vencimiento rapido
+  const ok1 = await cachedOrStale(cache, "k", async () => "valor-fresco");
+  if (ok1.stale !== false || ok1.value !== "valor-fresco") throw new Error(`primer fetch deberia ser fresco: ${JSON.stringify(ok1)}`);
+  await new Promise(r => setTimeout(r, 80)); // dejar vencer el TTL
+  const ok2 = await cachedOrStale(cache, "k", async () => { throw new Error("fuente caida"); });
+  if (ok2.stale !== true || ok2.value !== "valor-fresco") throw new Error(`deberia caer al valor viejo marcado stale: ${JSON.stringify(ok2)}`);
+  if (typeof ok2.staleAgeS !== "number") throw new Error("falta staleAgeS");
+});
+
+await check("cachedOrStale: sin cache previo, un fetch fallido SIGUE fallando (no inventa datos)", async () => {
+  const cache = new TTLCache(50);
+  let threw = false;
+  try {
+    await cachedOrStale(cache, "nunca-visto", async () => { throw new Error("fuente caida"); });
+  } catch {
+    threw = true;
+  }
+  if (!threw) throw new Error("deberia relanzar el error cuando no hay nada en cache para caer de respaldo");
+});
 
 await check("GET / catalog", async () => {
   const j = await getJson("/");

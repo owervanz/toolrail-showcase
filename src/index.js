@@ -381,6 +381,13 @@ process.on("unhandledRejection", err => {
   console.error("[unhandledRejection]", err?.message || err);
 });
 
+// Without this handler, Node's default behavior for an uncaught synchronous
+// throw is to print a trace and kill the whole process — one bad code path
+// would take down every in-flight request, not just the one that hit it.
+process.on("uncaughtException", err => {
+  console.error("[uncaughtException]", err?.stack || err?.message || err);
+});
+
 registerKnownPaths([
   ...CATALOG.map(i => i.route.split(" ")[1]),
   "/", "/health", "/pdf/templates", "/llms.txt", "/skill.md", "/openapi.json",
