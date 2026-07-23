@@ -199,7 +199,7 @@ if (paymentsEnabled()) {
       ...(preview ? {
         unpaidResponseBody: () => ({
           contentType: "application/json",
-          body: { preview: true, example_response: preview, note: "Sample data. Pay the quoted amount (x402) to get the live result." },
+          body: { preview: true, example_response: preview, note: "Frozen illustrative sample — not today's value. Pay the quoted amount (x402) to get the live, current result." },
         }),
       } : {}),
     };
