@@ -35,14 +35,17 @@ export const config = {
 
   prices: {
     pdf: env.PRICE_PDF || "$0.01",
-    vatRate: env.PRICE_VAT_RATE || "$0.003",
+    vatRate: env.PRICE_VAT_RATE || "$0.007",
     vatValidate: env.PRICE_VAT_VALIDATE || "$0.005",
-    fx: env.PRICE_FX || "$0.003",
-    clIndicador: env.PRICE_CL_INDICADOR || "$0.003",
-    clDiasHabiles: env.PRICE_CL_DIAS_HABILES || "$0.003",
+    fx: env.PRICE_FX || "$0.007",
+    clIndicador: env.PRICE_CL_INDICADOR || "$0.007",
+    clDiasHabiles: env.PRICE_CL_DIAS_HABILES || "$0.007",
     clRut: env.PRICE_CL_RUT || "$0.002",
     clSueldo: env.PRICE_CL_SUELDO || "$0.01",
-    clFarmacias: env.PRICE_CL_FARMACIAS || "$0.003",
+    clFarmacias: env.PRICE_CL_FARMACIAS || "$0.007",
+    // Flagship aggregator (6 LATAM currencies in one call) — priced above the
+    // single-data-point floor, previously piggybacked on the PDF price.
+    latamFx: env.PRICE_LATAM_FX || "$0.015",
   },
 };
 

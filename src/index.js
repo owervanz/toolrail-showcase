@@ -93,7 +93,7 @@ const CATALOG = [
   { route: "GET /latam/dolar-argentina", price: config.prices.clIndicador,
     description: "Argentine dollar quotes in one call: oficial, blue (parallel) and euro rates plus the gap percentage — the region's most watched FX spread.",
     example: `curl "${config.baseUrl}/latam/dolar-argentina"` },
-  { route: "GET /latam/fx", price: config.prices.pdf,
+  { route: "GET /latam/fx", price: config.prices.latamFx,
     description: "All official LATAM exchange rates against USD in ONE call: Chilean peso (central bank), Argentine oficial+blue with gap, Brazilian real (PTAX), Mexican peso (FIX), Colombian peso (legal TRM) and Peruvian sol (SBS). The region's FX aggregator no one else serves.",
     example: `curl "${config.baseUrl}/latam/fx"` },
   { route: "GET /br/indices", price: config.prices.clIndicador,

@@ -37,7 +37,7 @@ const FAQ = [
   ["Can I try it without paying?",
    "Yes. Calling any paid endpoint without payment returns its price quote (the 402 challenge) for free, and the catalog (GET /), PDF template schemas (/pdf/templates), OpenAPI spec and llms.txt are all free."],
   ["What does a call cost?",
-   "Between $0.002 and $0.01 per call depending on the endpoint. No minimums, no subscriptions, no expiring credits — $0.00 when you don't use it."],
+   "Between $0.002 and $0.015 per call depending on the endpoint. No minimums, no subscriptions, no expiring credits — $0.00 when you don't use it."],
   ["Do I pay if a call fails?",
    "No. Settlement happens only after the API successfully returns your resource. Server errors are not charged."],
   ["Where does the data come from?",
@@ -270,7 +270,7 @@ export function landingHtml(catalog, baseUrl, live = null, mcpToolCount = 27) {
   <div class="flow">
     <div class="row"><span class="who">AGENT</span><span class="arrow">→</span><pre>GET /fx/convert?from=USD&amp;to=EUR&amp;amount=100</pre></div>
     <div class="row"><span class="who"></span><span class="arrow">←</span><pre><span class="warn">402 Payment Required</span>
-{ "amount": <span class="hl">"0.003 USDC"</span>, "networks": ["base", "solana"], "payTo": "…" }</pre></div>
+{ "amount": <span class="hl">"0.007 USDC"</span>, "networks": ["base", "solana"], "payTo": "…" }</pre></div>
     <div class="row"><span class="who">AGENT</span><span class="arrow">→</span><pre>GET /fx/convert?…  <span class="hl">X-PAYMENT: &lt;signed payment&gt;</span></pre></div>
     <div class="row"><span class="who"></span><span class="arrow">←</span><pre><span class="hl">200 OK</span>  { "converted": 87.45, "source": "European Central Bank" }</pre></div>
   </div>
@@ -285,7 +285,7 @@ export function landingHtml(catalog, baseUrl, live = null, mcpToolCount = 27) {
     </div>
     <div class="col win">
       <h3>Toolrail</h3>
-      <ol><li>Call the endpoint</li><li>Pay $0.002–$0.01 for that call</li><li>Done — payment is the authentication</li><li>One on-chain ledger, real time</li><li>$0.00 when you don't use it</li></ol>
+      <ol><li>Call the endpoint</li><li>Pay $0.002–$0.015 for that call</li><li>Done — payment is the authentication</li><li>One on-chain ledger, real time</li><li>$0.00 when you don't use it</li></ol>
     </div>
   </div>
 
