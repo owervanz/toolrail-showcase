@@ -1,0 +1,5 @@
+[
+  { "desde": "2026-09-30", "plazo": 10, "tipo": "administrativo" },
+  { "desde": "2026-12-30", "plazo": 2, "tipo": "habil-bancario" },
+  { "desde": "2026-09-30", "plazo": 10, "tipo": "corrido" }
+]

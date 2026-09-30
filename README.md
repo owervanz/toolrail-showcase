@@ -31,6 +31,12 @@ For a free Node.js call with no wallet or API key, use [the runnable MCP example
 
 [Prueba gratis UF, RUT y días hábiles](https://toolrail.dev/probar?utm_source=github). Después [conecta Toolrail a tu agente](https://toolrail.dev/integrar?utm_source=github) o ejecuta el ejemplo MCP de Node. La demo permite 30 llamadas por cliente anónimo y día UTC. El alojamiento gratuito puede tardar en arrancar después de inactividad.
 
+## Runnable reports / Reportes ejecutables
+
+The [workflow guide](examples/WORKFLOWS.md) includes three free Node.js workflows: a UF report with its date/source, batch RUT format/checksum validation, and Chilean deadline reports. They reuse existing MCP tools, run sequentially and identify partial results or tool errors. Each batch is limited to ten rows and shares the existing free quota.
+
+Descarga [workflows.mjs](examples/workflows.mjs), los [RUT ilustrativos](examples/ruts.example.json) y los [plazos de ejemplo](examples/deadlines.example.json). Sigue las [instrucciones en español](examples/WORKFLOWS.md): no requiere cuenta, wallet ni pago. Los RUT no verifican identidad y los plazos hábiles usan el calendario nacional 2026–2027.
+
 ## Production HTTP API
 
 The [live catalog](https://toolrail.dev/.well-known/agent-catalog.json) lists **30 paid resources** and their current prices. Most utilities cost **0.002–0.015 USDC per call**; the downloadable guide PDF is separately priced. Every paid endpoint accepts USDC on Base or Solana mainnet through **x402 v2**.
