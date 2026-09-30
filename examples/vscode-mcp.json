@@ -1,0 +1,5 @@
+{
+  "servers": {
+    "toolrail": { "type": "http", "url": "https://toolrail.dev/mcp" }
+  }
+}

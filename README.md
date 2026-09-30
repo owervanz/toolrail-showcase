@@ -23,7 +23,13 @@ Use Toolrail to convert 50 UF to Chilean pesos.
 Include the value date and source.
 ```
 
-For Cursor and Claude Desktop/Web, follow the [client-specific instructions](https://toolrail.dev/integrate?utm_source=github).
+For Cursor, VS Code and Claude Desktop/Web, follow the [client-specific instructions](https://toolrail.dev/integrate?utm_source=github). Cursor has a direct installation button.
+
+For a free Node.js call with no wallet or API key, use [the runnable MCP example](examples/mcp-free.mjs) and [its setup instructions](examples/MCP-README.md). Editor configurations are included for [Cursor](examples/cursor-mcp.json) and [VS Code](examples/vscode-mcp.json). Merge them with existing servers.
+
+## Para comenzar en español
+
+[Prueba gratis UF, RUT y días hábiles](https://toolrail.dev/probar?utm_source=github). Después [conecta Toolrail a tu agente](https://toolrail.dev/integrar?utm_source=github) o ejecuta el ejemplo MCP de Node. La demo permite 30 llamadas por cliente anónimo y día UTC. El alojamiento gratuito puede tardar en arrancar después de inactividad.
 
 ## Production HTTP API
 
