@@ -8,7 +8,7 @@ Chile and LATAM data utilities for agents and automations: UF conversion, RUT fo
 
 The [browser demo](https://toolrail.dev/try?utm_source=github) lets you convert 50 UF to Chilean pesos, check an example RUT and add Chilean business days to a date. It uses the existing MCP tools, with no account or wallet required.
 
-The free MCP demo exposes **26 JSON tools**, limited to **30 tool calls per anonymous client per UTC day**. Browser demo calls share that quota.
+The free MCP demo exposes **28 JSON tools**, limited to **30 tool calls per anonymous client per UTC day**. Browser demo calls share that quota.
 
 For **Claude Code**, run:
 
@@ -39,7 +39,7 @@ Descarga [workflows.mjs](examples/workflows.mjs), los [RUT ilustrativos](example
 
 ## Production HTTP API
 
-The [live catalog](https://toolrail.dev/.well-known/agent-catalog.json) lists **29 paid resources** and their current prices. Most utilities cost **0.002–0.015 USDC per call**; the downloadable guide PDF is separately priced. Every paid endpoint accepts USDC on Base or Solana mainnet through **x402 v2**.
+The [live catalog](https://toolrail.dev/.well-known/agent-catalog.json) lists **31 paid resources** and their current prices. Most utilities cost **0.002–0.015 USDC per call**; the downloadable guide PDF is separately priced. Every paid endpoint accepts USDC on Base or Solana mainnet through **x402 v2**.
 
 An unpaid call returns HTTP `402` with a base64 JSON `PAYMENT-REQUIRED` header. An x402 client signs a payment authorization and retries using `PAYMENT-SIGNATURE`. Configure a funded wallet and inspect the quote before signing. The API does not require an account, API key or subscription.
 
